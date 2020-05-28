@@ -16,6 +16,29 @@
 
 package main
 
+import (
+	"log"
+
+	"github.com/SENERGY-Platform/analytics-file-export-service/v2/internal/lib"
+	"github.com/joho/godotenv"
+)
+
 func main() {
-	println("Start")
+	err := godotenv.Load()
+	if err != nil {
+		log.Println("Error loading .env file")
+	}
+	serving := *lib.NewServingService(
+		lib.GetEnv("SERVING_API_ENDPOINT", ""),
+	)
+	keycloak := *lib.NewKeycloakService(
+		lib.GetEnv("KEYCLOAK_ADDRESS", "http://test"),
+		lib.GetEnv("KEYCLOAK_CLIENT_ID", "test"),
+		lib.GetEnv("KEYCLOAK_CLIENT_SECRET", "test"),
+		lib.GetEnv("KEYCLOAK_REALM", "test"),
+		lib.GetEnv("KEYCLOAK_USER", "test"),
+		lib.GetEnv("KEYCLOAK_PW", "test"),
+	)
+	es := lib.NewExportService(keycloak, serving)
+	es.StartExportService()
 }

@@ -17,17 +17,20 @@
 package lib
 
 import (
+	"encoding/csv"
 	"fmt"
 	"log"
+	"os"
 )
 
 type ExportService struct {
 	keycloak KeycloakService
 	serving  ServingService
+	influx   InfluxService
 }
 
-func NewExportService(keycloak KeycloakService, serving ServingService) *ExportService {
-	return &ExportService{keycloak: keycloak, serving: serving}
+func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService) *ExportService {
+	return &ExportService{keycloak: keycloak, serving: serving, influx: influx}
 }
 
 func (es *ExportService) StartExportService() {
@@ -43,7 +46,28 @@ func (es *ExportService) StartExportService() {
 			log.Fatal("GetServingServices failed: " + err.Error())
 		}
 		for _, serving := range servings {
-			fmt.Println(serving)
+			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement)
+			for _, i := range data.Results {
+				fmt.Println(i.Series[0].Columns)
+				path := "./files/"
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					os.Mkdir(path, 0755)
+				}
+				// Create a csv file
+				f, err := os.Create(path + serving.Measurement + ".csv")
+				if err != nil {
+					fmt.Println(err)
+				}
+				defer f.Close()
+				// Write Unmarshaled json data to CSV file
+				w := csv.NewWriter(f)
+				//Columns
+				w.Write(i.Series[0].Columns[:])
+				for _, d := range i.Series[0].GetValuesAsString() {
+					w.Write(d)
+				}
+				w.Flush()
+			}
 		}
 	}
 }

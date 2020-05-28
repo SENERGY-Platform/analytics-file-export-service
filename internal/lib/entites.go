@@ -17,6 +17,8 @@
 package lib
 
 import (
+	"reflect"
+	"strconv"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -47,4 +49,53 @@ type ServingInstanceValue struct {
 	Name       string    `json:"Name,omitempty"`
 	Type       string    `json:"Type,omitempty"`
 	Path       string    `json:"Path,omitempty"`
+}
+
+type InfluxRequest struct {
+	Time    InfluxTime    `json:"time,omitempty"`
+	Queries []InfluxQuery `json:"queries,omitempty"`
+}
+
+type InfluxTime struct {
+	Last  string `json:"last,omitempty"`
+	Start string `json:"start,omitempty"`
+	End   string `json:"end,omitempty"`
+}
+
+type InfluxQuery struct {
+	Id string `json:"id,omitempty"`
+}
+
+type InfluxResponse struct {
+	Results []InfluxResults `json:"results,omitempty"`
+}
+
+type InfluxResults struct {
+	Series []InfluxSeries `json:"series,omitempty"`
+}
+
+type InfluxSeries struct {
+	Columns []string        `json:"columns,omitempty"`
+	Name    string          `json:"name,omitempty"`
+	Values  [][]interface{} `json:"values,omitempty"`
+}
+
+func (i InfluxSeries) GetValuesAsString() (stringValues [][]string) {
+	for _, val := range i.Values {
+		var a []string
+		for _, data := range val {
+			switch reflect.TypeOf(data).Kind() {
+			case reflect.Float64:
+				a = append(a, strconv.FormatFloat(data.(float64), 'f', 20, 64))
+				break
+			case reflect.String:
+				a = append(a, data.(string))
+				break
+			default:
+				break
+			}
+		}
+		stringValues = append(stringValues, a)
+	}
+	return
 }

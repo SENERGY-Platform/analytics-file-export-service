@@ -31,6 +31,9 @@ func main() {
 	serving := *lib.NewServingService(
 		lib.GetEnv("SERVING_API_ENDPOINT", ""),
 	)
+	influx := *lib.NewInfluxService(
+		lib.GetEnv("INFLUX_API_URL", ""),
+	)
 	keycloak := *lib.NewKeycloakService(
 		lib.GetEnv("KEYCLOAK_ADDRESS", "http://test"),
 		lib.GetEnv("KEYCLOAK_CLIENT_ID", "test"),
@@ -39,6 +42,6 @@ func main() {
 		lib.GetEnv("KEYCLOAK_USER", "test"),
 		lib.GetEnv("KEYCLOAK_PW", "test"),
 	)
-	es := lib.NewExportService(keycloak, serving)
+	es := lib.NewExportService(keycloak, serving, influx)
 	es.StartExportService()
 }

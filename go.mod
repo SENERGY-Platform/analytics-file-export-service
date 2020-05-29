@@ -8,9 +8,10 @@ require (
 	github.com/joho/godotenv v1.3.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/parnurzeal/gorequest v0.2.16
-	github.com/pkg/errors v0.9.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
 	github.com/smartystreets/goconvey v1.6.4 // indirect
+	github.com/studio-b12/gowebdav v0.0.0-20200303150724-9380631c29a1
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2 // indirect
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 	moul.io/http2curl v1.0.0 // indirect

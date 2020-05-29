@@ -17,26 +17,34 @@
 package lib
 
 import (
-	"encoding/json"
+	"fmt"
+	"io"
+	"os"
 
-	"github.com/parnurzeal/gorequest"
+	"github.com/studio-b12/gowebdav"
 )
 
-type InfluxService struct {
-	url string
+type CloudService struct {
+	Client *gowebdav.Client
 }
 
-func NewInfluxService(url string) *InfluxService {
-	return &InfluxService{url: url}
-}
-
-func (i *InfluxService) GetData(accessToken string, id string, start string, end string) (influxResponse InfluxResponse, err error) {
-	request := gorequest.New()
-	data := InfluxRequest{
-		Time:    InfluxTime{Start: start, End: end},
-		Queries: []InfluxQuery{{Id: id}},
+func NewCloudService(host string, username string, password string) *CloudService {
+	c := gowebdav.NewClient(host, username, password)
+	err := c.Connect()
+	if err != nil {
+		fmt.Println(err.Error())
 	}
-	_, body, _ := request.Post(i.url+"/queries").Set("Authorization", "Bearer "+accessToken).Send(data).End()
-	err = json.Unmarshal([]byte(body), &influxResponse)
+	return &CloudService{c}
+}
+
+func (cs *CloudService) MkDir(path string, mode os.FileMode) {
+	err := cs.Client.MkdirAll(path, mode)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+}
+
+func (cs *CloudService) UploadFile(path string, file io.Reader, mode os.FileMode) (err error) {
+	err = cs.Client.WriteStream(path, file, mode)
 	return
 }

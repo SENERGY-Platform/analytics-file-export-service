@@ -18,6 +18,11 @@ package main
 
 import (
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+
+	cron "github.com/robfig/cron/v3"
 
 	"github.com/SENERGY-Platform/analytics-file-export-service/v2/internal/lib"
 	"github.com/joho/godotenv"
@@ -34,6 +39,11 @@ func main() {
 	influx := *lib.NewInfluxService(
 		lib.GetEnv("INFLUX_API_URL", ""),
 	)
+	cloud := *lib.NewCloudService(
+		lib.GetEnv("NEXTCLOUD_HOST", ""),
+		lib.GetEnv("NEXTCLOUD_USER", ""),
+		lib.GetEnv("NEXTCLOUD_PW", ""),
+	)
 	keycloak := *lib.NewKeycloakService(
 		lib.GetEnv("KEYCLOAK_ADDRESS", "http://test"),
 		lib.GetEnv("KEYCLOAK_CLIENT_ID", "test"),
@@ -42,6 +52,25 @@ func main() {
 		lib.GetEnv("KEYCLOAK_USER", "test"),
 		lib.GetEnv("KEYCLOAK_PW", "test"),
 	)
-	es := lib.NewExportService(keycloak, serving, influx)
-	es.StartExportService()
+
+	if lib.GetEnv("CRON_SCHEDULE", "* * * * *") == "false" {
+		es := lib.NewExportService(keycloak, serving, influx, cloud, lib.GetEnv("CLOUD_PATH", ""))
+		es.StartExportService()
+		os.Exit(0)
+	} else {
+		c := cron.New()
+		_, err = c.AddFunc(lib.GetEnv("CRON_SCHEDULE", "* * * * *"), func() {
+			log.Println("Start backup")
+			es := lib.NewExportService(keycloak, serving, influx, cloud, lib.GetEnv("CLOUD_PATH", ""))
+			es.StartExportService()
+		})
+		if err != nil {
+			log.Fatal("Error starting job: " + err.Error())
+		}
+		c.Start()
+	}
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+	sig := <-shutdown
+	log.Println("received shutdown signal", sig)
 }

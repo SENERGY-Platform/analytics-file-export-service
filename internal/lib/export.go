@@ -21,16 +21,25 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	gocloak "github.com/Nerzal/gocloak/v5"
 )
 
+const LOCAL_PATH = "files"
+
 type ExportService struct {
-	keycloak KeycloakService
-	serving  ServingService
-	influx   InfluxService
+	keycloak  KeycloakService
+	serving   ServingService
+	influx    InfluxService
+	cloud     CloudService
+	cloudPath string
 }
 
-func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService) *ExportService {
-	return &ExportService{keycloak: keycloak, serving: serving, influx: influx}
+func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService, cloud CloudService, cloudPath string) *ExportService {
+	return &ExportService{keycloak: keycloak, serving: serving, influx: influx, cloud: cloud, cloudPath: cloudPath}
 }
 
 func (es *ExportService) StartExportService() {
@@ -41,26 +50,70 @@ func (es *ExportService) StartExportService() {
 		log.Fatal("GetUserInfo failed:" + err.Error())
 	}
 	if user != nil {
-		servings, err := es.serving.GetServingServices(*user.Sub, es.keycloak.GetAccessToken())
-		if err != nil {
-			log.Fatal("GetServingServices failed: " + err.Error())
-		}
+		es.createCsvFiles(user)
+	}
+	es.uploadFiles()
+}
+
+func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
+	servings, err := es.serving.GetServingServices(*user.Sub, es.keycloak.GetAccessToken())
+	if err != nil {
+		log.Fatal("GetServingServices failed: " + err.Error())
+	} else {
 		for _, serving := range servings {
-			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement)
+			now := time.Now()
+			yesterday := now.AddDate(0, 0, -1)
+			start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.UTC)
+			end := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
 			for _, i := range data.Results {
-				es.writeCsv(i, serving)
+				es.writeCsv(i, serving, start.Format("2006-01-02"))
 			}
 		}
 	}
 }
 
-func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance) {
-	PATH := "./files/"
-	if _, err := os.Stat(PATH); os.IsNotExist(err) {
-		_ = os.Mkdir(PATH, 0755)
+func (es *ExportService) uploadFiles() {
+	var files []string
+	err := filepath.Walk("files", func(path string, info os.FileInfo, err error) error {
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		panic(err)
 	}
+	for _, path := range files {
+		fi, err := os.Stat(path)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		switch mode := fi.Mode(); {
+		case mode.IsDir():
+			// do directory stuff
+		case mode.IsRegular():
+			f, _ := os.Open(path)
+			defer f.Close()
+			log.Println("Uploading: " + path)
+			err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
+			if err != nil {
+				log.Fatalln("Could not upload " + path + " " + err.Error())
+			} else {
+				_ = os.Remove(path)
+				log.Println("... done")
+			}
+		}
+	}
+}
+
+func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, fileName string) {
+	PATH := "./" + LOCAL_PATH + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
+	if _, err := os.Stat(PATH); os.IsNotExist(err) {
+		_ = os.MkdirAll(PATH, 0755)
+	}
+	filePath := PATH + fileName + ".csv"
 	// Create csv file
-	f, err := os.Create(PATH + serving.Measurement + ".csv")
+	f, err := os.Create(filePath)
 	if err != nil {
 		fmt.Println(err)
 	}

@@ -48,26 +48,30 @@ func (es *ExportService) StartExportService() {
 		for _, serving := range servings {
 			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement)
 			for _, i := range data.Results {
-				fmt.Println(i.Series[0].Columns)
-				path := "./files/"
-				if _, err := os.Stat(path); os.IsNotExist(err) {
-					os.Mkdir(path, 0755)
-				}
-				// Create a csv file
-				f, err := os.Create(path + serving.Measurement + ".csv")
-				if err != nil {
-					fmt.Println(err)
-				}
-				defer f.Close()
-				// Write Unmarshaled json data to CSV file
-				w := csv.NewWriter(f)
-				//Columns
-				w.Write(i.Series[0].Columns[:])
-				for _, d := range i.Series[0].GetValuesAsString() {
-					w.Write(d)
-				}
-				w.Flush()
+				es.writeCsv(i, serving)
 			}
 		}
 	}
+}
+
+func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance) {
+	PATH := "./files/"
+	if _, err := os.Stat(PATH); os.IsNotExist(err) {
+		_ = os.Mkdir(PATH, 0755)
+	}
+	// Create csv file
+	f, err := os.Create(PATH + serving.Measurement + ".csv")
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer f.Close()
+	// Write Unmarshaled json data to CSV file
+	w := csv.NewWriter(f)
+	//Columns
+	_ = w.Write(i.Series[0].Columns[:])
+	//Data
+	for _, d := range i.Series[0].GetValuesAsString() {
+		_ = w.Write(d)
+	}
+	w.Flush()
 }

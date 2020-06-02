@@ -19,7 +19,6 @@ package lib
 import (
 	"encoding/csv"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -100,12 +99,12 @@ func (es *ExportService) uploadFiles() {
 		case mode.IsDir():
 			// do directory stuff
 		case mode.IsRegular():
-			//f, _ := os.Open(path)
-			//defer f.Close()
+			f, _ := os.Open(path)
+			defer f.Close()
 			log.Println("Uploading: " + path)
-			bytes, _ := ioutil.ReadFile(path)
-			err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
-			//err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
+			//bytes, _ := ioutil.ReadFile(path)
+			//err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
+			err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
 			if err != nil {
 				log.Fatalln("Could not upload " + path + " " + err.Error())
 			} else {

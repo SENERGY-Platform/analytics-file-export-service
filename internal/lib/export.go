@@ -19,10 +19,12 @@ package lib
 import (
 	"encoding/csv"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	gocloak "github.com/Nerzal/gocloak/v5"
@@ -60,16 +62,22 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 	if err != nil {
 		log.Fatal("GetServingServices failed: " + err.Error())
 	} else {
+		var wg sync.WaitGroup
 		for _, serving := range servings {
 			now := time.Now()
 			yesterday := now.AddDate(0, 0, -1)
 			start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.UTC)
 			end := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
-			for _, i := range data.Results {
-				es.writeCsv(i, serving, start.Format("2006-01-02"))
-			}
+			wg.Add(1)
+			func() {
+				defer wg.Done()
+				data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
+				for _, i := range data.Results {
+					es.writeCsv(i, serving, start.Format("2006-01-02"))
+				}
+			}()
 		}
+		wg.Wait()
 	}
 }
 
@@ -92,15 +100,17 @@ func (es *ExportService) uploadFiles() {
 		case mode.IsDir():
 			// do directory stuff
 		case mode.IsRegular():
-			f, _ := os.Open(path)
-			defer f.Close()
+			//f, _ := os.Open(path)
+			//defer f.Close()
 			log.Println("Uploading: " + path)
-			err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
+			bytes, _ := ioutil.ReadFile(path)
+			err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
+			//err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
 			if err != nil {
 				log.Fatalln("Could not upload " + path + " " + err.Error())
 			} else {
 				_ = os.Remove(path)
-				log.Println("... done")
+				log.Println("Uploading to " + strings.Replace(path, LOCAL_PATH, es.cloudPath, -1) + "... done")
 			}
 		}
 	}

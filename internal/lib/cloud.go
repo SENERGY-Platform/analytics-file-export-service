@@ -48,3 +48,8 @@ func (cs *CloudService) UploadFile(path string, file io.Reader, mode os.FileMode
 	err = cs.Client.WriteStream(path, file, mode)
 	return
 }
+
+func (cs *CloudService) UploadFileFromByteArray(path string, file []byte, mode os.FileMode) (err error) {
+	err = cs.Client.Write(path, file, mode)
+	return
+}

@@ -18,7 +18,6 @@ package lib
 
 import (
 	"encoding/csv"
-	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -92,7 +91,7 @@ func (es *ExportService) uploadFiles() {
 	for _, path := range files {
 		fi, err := os.Stat(path)
 		if err != nil {
-			fmt.Println(err)
+			log.Fatal(err)
 			return
 		}
 		switch mode := fi.Mode(); {
@@ -124,7 +123,7 @@ func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, file
 	// Create csv file
 	f, err := os.Create(filePath)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 	// Write Unmarshaled json data to CSV file

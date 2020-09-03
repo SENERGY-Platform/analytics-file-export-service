@@ -74,6 +74,7 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 					es.writeCsv(i, serving, start.Format("2006-01-02"))
 				}
 			}()
+			time.Sleep(2 * time.Second)
 		}
 		wg.Wait()
 	}

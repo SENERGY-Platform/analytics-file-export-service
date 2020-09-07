@@ -103,7 +103,7 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 }
 
 func (es *ExportService) uploadFiles() {
-	files, err := walkMatch("files", "*.csv")
+	files, err := walkMatch(es.filePath, "*.csv")
 	if err != nil {
 		panic(err)
 	}

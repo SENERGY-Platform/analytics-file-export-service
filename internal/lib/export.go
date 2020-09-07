@@ -172,7 +172,6 @@ func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, file
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer f.Close()
 	// Write Unmarshaled json data to CSV file
 	w := csv.NewWriter(f)
 	//Columns
@@ -181,8 +180,9 @@ func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, file
 	for _, d := range i.Series[0].GetValuesAsString() {
 		_ = w.Write(d)
 	}
-	PrintMemUsage()
 	w.Flush()
+	f.Close()
+	PrintMemUsage()
 }
 
 func PrintMemUsage() {

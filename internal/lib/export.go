@@ -56,7 +56,7 @@ func (es *ExportService) StartExportService() {
 	if user != nil {
 		es.createCsvFiles(user)
 	}
-	//es.uploadFiles()
+	es.uploadFiles()
 }
 
 func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
@@ -99,6 +99,7 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 		for _, i := range data.Results {
 			es.writeCsv(i, serving, start.Format("2006-01-02"))
 		}
+		fmt.Println("... done")
 	}
 }
 
@@ -180,7 +181,6 @@ func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, file
 	}
 	w.Flush()
 	f.Close()
-	PrintMemUsage()
 }
 
 func PrintMemUsage() {

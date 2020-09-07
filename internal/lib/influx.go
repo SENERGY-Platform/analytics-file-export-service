@@ -64,8 +64,7 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 		if err != nil {
 			fmt.Println(err)
 		}
-		counter := &WriteCounter{}
-		if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+		if _, err = io.Copy(out, resp.Body); err != nil {
 			_ = out.Close()
 			fmt.Println(err)
 		}

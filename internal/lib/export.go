@@ -119,7 +119,6 @@ func (es *ExportService) uploadFiles() {
 			// do directory stuff
 		case mode.IsRegular():
 			f, _ := os.Open(path)
-			defer f.Close()
 			fmt.Println("Uploading (" + strconv.Itoa(no+1) + "/" + filesTotal + "): " + path)
 			//bytes, _ := ioutil.ReadFile(path)
 			//err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
@@ -129,6 +128,10 @@ func (es *ExportService) uploadFiles() {
 			} else {
 				_ = os.Remove(path)
 				fmt.Println("... done")
+			}
+			err = f.Close()
+			if err != nil {
+				fmt.Println(err)
 			}
 		}
 	}

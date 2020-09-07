@@ -93,11 +93,9 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 	now := time.Now()
 	for day := 0; day > -days; day-- {
 		startDate := now.AddDate(0, 0, day-1)
-		endDate := startDate.AddDate(0, 0, 1)
 		fmt.Println(startDate.Format("2006-01-02"))
 		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		end := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, time.UTC)
-		data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
+		data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
 		for _, i := range data.Results {
 			es.writeCsv(i, serving, start.Format("2006-01-02"))
 		}

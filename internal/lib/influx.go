@@ -19,8 +19,10 @@ package lib
 import (
 	"bytes"
 	"encoding/json"
-
-	"github.com/parnurzeal/gorequest"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 )
 
 type InfluxService struct {
@@ -32,14 +34,43 @@ func NewInfluxService(url string) *InfluxService {
 }
 
 func (i *InfluxService) GetData(accessToken string, id string, start string, end string) (influxResponse InfluxResponse, err error) {
-	request := gorequest.New()
+	TmpPath := GetEnv("FILES_PATH", "files") + "/tmp/"
 	data := InfluxRequest{
 		Time:    InfluxTime{Start: start, End: end},
 		Queries: []InfluxQuery{{Id: id}},
 	}
-	_, body, _ := request.Post(i.url+"/queries").Set("Authorization", "Bearer "+accessToken).Send(data).EndBytes()
-	decoder := json.NewDecoder(bytes.NewBuffer(body))
-	err = decoder.Decode(&influxResponse)
+	jsonData, _ := json.Marshal(data)
+	client := http.Client{}
+	request, err := http.NewRequest("POST", i.url+"/queries", bytes.NewBuffer(jsonData))
+	if request != nil {
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer "+accessToken)
+	}
+	resp, err := client.Do(request)
 
+	if _, err := os.Stat(TmpPath); os.IsNotExist(err) {
+		_ = os.MkdirAll(TmpPath, 0755)
+	}
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	TmpPath += id + ".tmp"
+	out, err := os.Create(TmpPath)
+	if err != nil {
+		fmt.Println(err)
+	}
+	counter := &WriteCounter{}
+	if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+		_ = out.Close()
+		fmt.Println(err)
+	}
+	_ = out.Close()
+	jsonFile, err := os.Open(TmpPath)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer jsonFile.Close()
+	err = json.NewDecoder(jsonFile).Decode(&influxResponse)
+	os.Remove(TmpPath)
 	return
 }

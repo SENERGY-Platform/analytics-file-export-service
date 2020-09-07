@@ -22,12 +22,14 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	gocloak "github.com/Nerzal/gocloak/v5"
+	humanize "github.com/dustin/go-humanize"
 )
 
 type ExportService struct {
@@ -54,7 +56,7 @@ func (es *ExportService) StartExportService() {
 	if user != nil {
 		es.createCsvFiles(user)
 	}
-	es.uploadFiles()
+	//es.uploadFiles()
 }
 
 func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
@@ -179,5 +181,16 @@ func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, file
 	for _, d := range i.Series[0].GetValuesAsString() {
 		_ = w.Write(d)
 	}
+	PrintMemUsage()
 	w.Flush()
+}
+
+func PrintMemUsage() {
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
+	fmt.Printf("Alloc = %v MiB", humanize.Bytes(m.Alloc))
+	fmt.Printf("\tTotalAlloc = %v MiB", humanize.Bytes(m.TotalAlloc))
+	fmt.Printf("\tSys = %v MiB", humanize.Bytes(m.Sys))
+	fmt.Printf("\tNumGC = %v\n", m.NumGC)
 }

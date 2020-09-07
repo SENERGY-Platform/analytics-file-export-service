@@ -18,9 +18,11 @@ package lib
 
 import (
 	"encoding/csv"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -61,26 +63,42 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 		log.Fatal("GetServingServices failed: " + err.Error())
 	} else {
 		var wg sync.WaitGroup
-		for _, serving := range servings {
-			now := time.Now()
-			yesterday := now.AddDate(0, 0, -1)
-			start := time.Date(yesterday.Year(), yesterday.Month(), yesterday.Day(), 0, 0, 0, 0, time.UTC)
-			end := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
-			wg.Add(1)
-			func() {
-				defer wg.Done()
-				data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
-				for _, i := range data.Results {
-					es.writeCsv(i, serving, start.Format("2006-01-02"))
-				}
-			}()
-			time.Sleep(2 * time.Second)
+		servingsTotal := strconv.Itoa(len(servings))
+		for no, serving := range servings {
+			if serving.Measurement == "00fadae3-4f25-4402-ae78-020dfb92231d" {
+				wg.Add(1)
+				func() {
+					fmt.Println("Get (" + strconv.Itoa(no+1) + "/" + servingsTotal + "):" + serving.Measurement + " - " + serving.Name)
+					days, err := strconv.Atoi(GetEnv("DAYS_BACK", "1"))
+					if err != nil {
+						fmt.Println(err)
+					}
+					es.getInfluxDataOfExportLastDays(serving, days)
+					defer wg.Done()
+				}()
+			}
 		}
 		wg.Wait()
 	}
 }
 
+func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, days int) {
+	now := time.Now()
+	for day := 0; day > -days; day-- {
+		startDate := now.AddDate(0, 0, day-1)
+		endDate := startDate.AddDate(0, 0, 1)
+		fmt.Println(startDate)
+		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
+		end := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, time.UTC)
+		data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
+		for _, i := range data.Results {
+			es.writeCsv(i, serving, start.Format("2006-01-02"))
+		}
+	}
+}
+
 func (es *ExportService) uploadFiles() {
+	fmt.Println("upload")
 	var files []string
 	err := filepath.Walk("files", func(path string, info os.FileInfo, err error) error {
 		files = append(files, path)

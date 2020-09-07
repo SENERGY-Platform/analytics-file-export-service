@@ -65,18 +65,16 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 		var wg sync.WaitGroup
 		servingsTotal := strconv.Itoa(len(servings))
 		for no, serving := range servings {
-			if serving.Measurement == "00fadae3-4f25-4402-ae78-020dfb92231d" {
-				wg.Add(1)
-				func() {
-					fmt.Println("Get (" + strconv.Itoa(no+1) + "/" + servingsTotal + "):" + serving.Measurement + " - " + serving.Name)
-					days, err := strconv.Atoi(GetEnv("DAYS_BACK", "1"))
-					if err != nil {
-						fmt.Println(err)
-					}
-					es.getInfluxDataOfExportLastDays(serving, days)
-					defer wg.Done()
-				}()
-			}
+			wg.Add(1)
+			func() {
+				fmt.Println("Get (" + strconv.Itoa(no+1) + "/" + servingsTotal + "):" + serving.Measurement + " - " + serving.Name)
+				days, err := strconv.Atoi(GetEnv("DAYS_BACK", "1"))
+				if err != nil {
+					fmt.Println(err)
+				}
+				es.getInfluxDataOfExportLastDays(serving, days)
+				defer wg.Done()
+			}()
 		}
 		wg.Wait()
 	}
@@ -98,7 +96,6 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 }
 
 func (es *ExportService) uploadFiles() {
-	fmt.Println("upload")
 	var files []string
 	err := filepath.Walk("files", func(path string, info os.FileInfo, err error) error {
 		files = append(files, path)

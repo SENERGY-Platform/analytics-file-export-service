@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/Nerzal/gocloak/v5 v5.3.0
+	github.com/dustin/go-humanize v1.0.0
 	github.com/elazarl/goproxy v0.0.0-20200426045556-49ad98f6dac1 // indirect
 	github.com/joho/godotenv v1.3.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect

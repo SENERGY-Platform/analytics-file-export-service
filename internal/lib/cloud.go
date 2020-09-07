@@ -45,7 +45,9 @@ func (cs *CloudService) MkDir(path string, mode os.FileMode) {
 }
 
 func (cs *CloudService) UploadFile(path string, file io.Reader, mode os.FileMode) (err error) {
-	err = cs.Client.WriteStream(path, file, mode)
+	counter := &WriteCounter{}
+	fileReader := io.TeeReader(file, counter)
+	err = cs.Client.WriteStream(path, fileReader, mode)
 	return
 }
 

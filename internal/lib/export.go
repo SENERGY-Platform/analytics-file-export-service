@@ -30,18 +30,18 @@ import (
 	gocloak "github.com/Nerzal/gocloak/v5"
 )
 
-const LOCAL_PATH = "files"
-
 type ExportService struct {
 	keycloak  KeycloakService
 	serving   ServingService
 	influx    InfluxService
 	cloud     CloudService
 	cloudPath string
+	filePath  string
 }
 
 func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService, cloud CloudService, cloudPath string) *ExportService {
-	return &ExportService{keycloak: keycloak, serving: serving, influx: influx, cloud: cloud, cloudPath: cloudPath}
+	filePath := GetEnv("FILES_PATH", "files")
+	return &ExportService{keycloak: keycloak, serving: serving, influx: influx, cloud: cloud, cloudPath: cloudPath, filePath: filePath}
 }
 
 func (es *ExportService) StartExportService() {
@@ -63,6 +63,13 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 		log.Fatal("GetServingServices failed: " + err.Error())
 	} else {
 		var wg sync.WaitGroup
+		if len(GetEnv("SINGLE_MEASUREMENT", "")) > 0 {
+			for _, serving := range servings {
+				if serving.Measurement == GetEnv("SINGLE_MEASUREMENT", "") {
+					servings = []ServingInstance{serving}
+				}
+			}
+		}
 		servingsTotal := strconv.Itoa(len(servings))
 		for no, serving := range servings {
 			wg.Add(1)
@@ -85,7 +92,7 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 	for day := 0; day > -days; day-- {
 		startDate := now.AddDate(0, 0, day-1)
 		endDate := startDate.AddDate(0, 0, 1)
-		fmt.Println(startDate)
+		fmt.Println(startDate.Format("2006-01-02"))
 		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
 		end := time.Date(endDate.Year(), endDate.Month(), endDate.Day(), 0, 0, 0, 0, time.UTC)
 		data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start.Format(time.RFC3339), end.Format(time.RFC3339))
@@ -96,15 +103,12 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 }
 
 func (es *ExportService) uploadFiles() {
-	var files []string
-	err := filepath.Walk("files", func(path string, info os.FileInfo, err error) error {
-		files = append(files, path)
-		return nil
-	})
+	files, err := walkMatch("files", "*.csv")
 	if err != nil {
 		panic(err)
 	}
-	for _, path := range files {
+	filesTotal := strconv.Itoa(len(files))
+	for no, path := range files {
 		fi, err := os.Stat(path)
 		if err != nil {
 			log.Fatal(err)
@@ -116,22 +120,44 @@ func (es *ExportService) uploadFiles() {
 		case mode.IsRegular():
 			f, _ := os.Open(path)
 			defer f.Close()
-			log.Println("Uploading: " + path)
+			fmt.Println("Uploading (" + strconv.Itoa(no+1) + "/" + filesTotal + "): " + path)
 			//bytes, _ := ioutil.ReadFile(path)
 			//err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
-			err := es.cloud.UploadFile(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), f, 0755)
+			err := es.cloud.UploadFile(strings.Replace(path, es.filePath, es.cloudPath, -1), f, 0755)
 			if err != nil {
-				log.Fatalln("Could not upload " + path + " " + err.Error())
+				fmt.Println("Could not upload " + path + " " + err.Error())
 			} else {
 				_ = os.Remove(path)
-				log.Println("Uploading to " + strings.Replace(path, LOCAL_PATH, es.cloudPath, -1) + "... done")
+				fmt.Println("... done")
 			}
 		}
 	}
 }
 
+func walkMatch(root, pattern string) ([]string, error) {
+	var matches []string
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if matched, err := filepath.Match(pattern, filepath.Base(path)); err != nil {
+			return err
+		} else if matched {
+			matches = append(matches, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return matches, nil
+}
+
 func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, fileName string) {
-	PATH := "./" + LOCAL_PATH + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
+	PATH := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
 	if _, err := os.Stat(PATH); os.IsNotExist(err) {
 		_ = os.MkdirAll(PATH, 0755)
 	}

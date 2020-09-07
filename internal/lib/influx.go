@@ -17,6 +17,7 @@
 package lib
 
 import (
+	"bytes"
 	"encoding/json"
 
 	"github.com/parnurzeal/gorequest"
@@ -36,7 +37,9 @@ func (i *InfluxService) GetData(accessToken string, id string, start string, end
 		Time:    InfluxTime{Start: start, End: end},
 		Queries: []InfluxQuery{{Id: id}},
 	}
-	_, body, _ := request.Post(i.url+"/queries").Set("Authorization", "Bearer "+accessToken).Send(data).End()
-	err = json.Unmarshal([]byte(body), &influxResponse)
+	_, body, _ := request.Post(i.url+"/queries").Set("Authorization", "Bearer "+accessToken).Send(data).EndBytes()
+	decoder := json.NewDecoder(bytes.NewBuffer(body))
+	err = decoder.Decode(&influxResponse)
+
 	return
 }

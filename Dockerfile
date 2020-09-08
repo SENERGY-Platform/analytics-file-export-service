@@ -5,7 +5,7 @@ WORKDIR /go/src/analytics-file-export-service
 
 RUN mkdir /data
 
-VOLUME ["/data"]
+VOLUME ["/go/src/analytics-file-export-service/files"]
 
 RUN make build
 

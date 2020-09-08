@@ -64,9 +64,17 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 		if err != nil {
 			fmt.Println(err)
 		}
-		if _, err = io.Copy(out, resp.Body); err != nil {
-			_ = out.Close()
-			fmt.Println(err)
+		if GetEnv("DEBUG", "false") == "true" {
+			counter := &WriteCounter{}
+			if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+				_ = out.Close()
+				fmt.Println(err)
+			}
+		} else {
+			if _, err = io.Copy(out, resp.Body); err != nil {
+				_ = out.Close()
+				fmt.Println(err)
+			}
 		}
 		_ = out.Close()
 		jsonFile, err := os.Open(TmpPath)
@@ -75,7 +83,7 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 		}
 		defer jsonFile.Close()
 		err = json.NewDecoder(jsonFile).Decode(&tmpInfluxResponse)
-		if step == 23 {
+		if len(influxResponse.Results) < 1 {
 			influxResponse = tmpInfluxResponse
 		} else {
 			influxResponse.Results[0].Series[0].Values = append(influxResponse.Results[0].Series[0].Values, tmpInfluxResponse.Results[0].Series[0].Values...)

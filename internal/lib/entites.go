@@ -84,15 +84,17 @@ func (i InfluxSeries) GetValuesAsString() (stringValues [][]string) {
 	for _, val := range i.Values {
 		var a []string
 		for _, data := range val {
-			switch reflect.TypeOf(data).Kind() {
-			case reflect.Float64:
-				a = append(a, strconv.FormatFloat(data.(float64), 'f', 20, 64))
-				break
-			case reflect.String:
-				a = append(a, data.(string))
-				break
-			default:
-				break
+			if data != nil {
+				switch reflect.TypeOf(data).Kind() {
+				case reflect.Float64:
+					a = append(a, strconv.FormatFloat(data.(float64), 'f', 20, 64))
+					break
+				case reflect.String:
+					a = append(a, data.(string))
+					break
+				default:
+					break
+				}
 			}
 		}
 		stringValues = append(stringValues, a)

@@ -42,6 +42,7 @@ type ExportService struct {
 }
 
 var NOW = time.Now()
+var didNotExport []string
 
 func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService, cloud CloudService, cloudPath string) *ExportService {
 	if GetEnv("NOW_DATE", "") != "" {
@@ -62,6 +63,12 @@ func (es *ExportService) StartExportService() {
 		es.createCsvFiles(user)
 	}
 	es.uploadFiles()
+	if len(didNotExport) > 0 {
+		fmt.Println("Did not upload:")
+		for _, export := range didNotExport {
+			fmt.Println(export)
+		}
+	}
 }
 
 func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
@@ -170,10 +177,17 @@ func walkMatch(root, pattern string) ([]string, error) {
 
 func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, fileName string) {
 	PATH := es.getFilePath(serving)
+	filePath := PATH + fileName + ".csv"
+	defer func() {
+		if r := recover(); r != nil {
+			didNotExport = append(didNotExport, filePath)
+			_ = os.Remove(filePath)
+		}
+	}()
 	if _, err := os.Stat(PATH); os.IsNotExist(err) {
 		_ = os.MkdirAll(PATH, 0755)
 	}
-	filePath := PATH + fileName + ".csv"
+
 	// Create csv file
 	f, err := os.Create(filePath)
 	if err != nil {

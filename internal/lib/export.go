@@ -41,7 +41,12 @@ type ExportService struct {
 	filePath  string
 }
 
+var NOW = time.Now()
+
 func NewExportService(keycloak KeycloakService, serving ServingService, influx InfluxService, cloud CloudService, cloudPath string) *ExportService {
+	if GetEnv("NOW_DATE", "") != "" {
+		NOW, _ = time.Parse("2006-01-02", GetEnv("NOW_DATE", ""))
+	}
 	filePath := GetEnv("FILES_PATH", "files")
 	return &ExportService{keycloak: keycloak, serving: serving, influx: influx, cloud: cloud, cloudPath: cloudPath, filePath: filePath}
 }
@@ -90,14 +95,17 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 }
 
 func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, days int) {
-	now := time.Now()
 	for day := 0; day > -days; day-- {
-		startDate := now.AddDate(0, 0, day-1)
+		startDate := NOW.AddDate(0, 0, day-1)
 		fmt.Println(startDate.Format("2006-01-02"))
 		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
-		for _, i := range data.Results {
-			es.writeCsv(i, serving, start.Format("2006-01-02"))
+		PATH := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
+		filePath := PATH + start.Format("2006-01-02") + ".csv"
+		if !fileExists(filePath) {
+			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
+			for _, i := range data.Results {
+				es.writeCsv(i, serving, start.Format("2006-01-02"))
+			}
 		}
 		fmt.Println("... done")
 	}
@@ -191,4 +199,12 @@ func PrintMemUsage() {
 	fmt.Printf("\tTotalAlloc = %v MiB", humanize.Bytes(m.TotalAlloc))
 	fmt.Printf("\tSys = %v MiB", humanize.Bytes(m.Sys))
 	fmt.Printf("\tNumGC = %v\n", m.NumGC)
+}
+
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return !info.IsDir()
 }

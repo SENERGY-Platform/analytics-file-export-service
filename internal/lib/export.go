@@ -99,8 +99,8 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 		startDate := NOW.AddDate(0, 0, day-1)
 		fmt.Println(startDate.Format("2006-01-02"))
 		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		PATH := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
-		filePath := PATH + start.Format("2006-01-02") + ".csv"
+		path := es.getFilePath(serving)
+		filePath := path + start.Format("2006-01-02") + ".csv"
 		if !fileExists(filePath) {
 			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
 			for _, i := range data.Results {
@@ -169,7 +169,7 @@ func walkMatch(root, pattern string) ([]string, error) {
 }
 
 func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, fileName string) {
-	PATH := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
+	PATH := es.getFilePath(serving)
 	if _, err := os.Stat(PATH); os.IsNotExist(err) {
 		_ = os.MkdirAll(PATH, 0755)
 	}
@@ -207,4 +207,9 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func (es *ExportService) getFilePath(serving ServingInstance) string {
+	path := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
+	return path
 }

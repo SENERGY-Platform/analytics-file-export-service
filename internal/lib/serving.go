@@ -28,6 +28,12 @@ type ServingService struct {
 	url string
 }
 
+type servingResponse struct {
+	Instances []ServingInstance `json:"instances"`
+	Count     int               `json:"count"`
+	Total     int               `json:"total"`
+}
+
 func NewServingService(url string) *ServingService {
 	return &ServingService{url: url}
 }
@@ -39,6 +45,11 @@ func (s *ServingService) GetServingServices(userId string, accessToken string) (
 		fmt.Println("could not access serving service: "+strconv.Itoa(resp.StatusCode), resp.Body)
 		return servings, errors.New("could not access serving service")
 	}
-	err = json.Unmarshal([]byte(body), &servings)
+	var fullServingResponse servingResponse
+	err = json.Unmarshal([]byte(body), &fullServingResponse)
+	if err != nil {
+		return nil, err
+	}
+	servings = fullServingResponse.Instances
 	return
 }

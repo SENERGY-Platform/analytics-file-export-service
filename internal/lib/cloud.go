@@ -19,6 +19,7 @@ package lib
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 
 	"github.com/studio-b12/gowebdav"
@@ -45,12 +46,18 @@ func (cs *CloudService) MkDir(path string, mode os.FileMode) {
 }
 
 func (cs *CloudService) UploadFile(path string, file io.Reader, mode os.FileMode) (err error) {
+	log.Println("[CLOUD]", "Uploading", path)
 	if GetEnv("DEBUG", "false") == "true" {
 		counter := &WriteCounter{}
 		fileReader := io.TeeReader(file, counter)
 		err = cs.Client.WriteStream(path, fileReader, mode)
 	} else {
 		err = cs.Client.WriteStream(path, file, mode)
+	}
+	if err == nil {
+		log.Println("[CLOUD]", "Upload finished:", path)
+	} else {
+		log.Println("[CLOUD]", "Upload error:", path, err.Error())
 	}
 	return
 }

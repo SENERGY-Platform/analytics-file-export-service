@@ -19,10 +19,8 @@ package lib
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
+	"log"
 	"net/http"
-	"os"
 	"time"
 )
 
@@ -34,62 +32,56 @@ func NewInfluxService(url string) *InfluxService {
 	return &InfluxService{url: url}
 }
 
-func (i *InfluxService) GetData(accessToken string, id string, start time.Time) (influxResponse InfluxResponse, err error) {
-	for step := 23; step >= 0; step-- {
-		var tmpInfluxResponse InfluxResponse
-		TmpPath := GetEnv("FILES_PATH", "files") + "/tmp/"
-		start = time.Date(start.Year(), start.Month(), start.Day(), step, 0, 0, 0, time.UTC)
-		end := start.Add(time.Hour * time.Duration(1))
-		data := InfluxRequest{
-			Time:    InfluxTime{Start: start.Format(time.RFC3339), End: end.Format(time.RFC3339)},
-			Queries: []InfluxQuery{{Id: id}},
+func (i *InfluxService) GetData(accessToken string, servings []ServingInstance, startInit time.Time, endInit time.Time) (influxResponse [][]interface{}, err error) {
+	body := make([]QueriesRequestElement, len(servings))
+	header := []interface{}{"time"}
+	for i := range servings {
+		var e QueriesRequestElement
+		e.Measurement = servings[i].Measurement
+		cols := make([]QueriesRequestElementColumn, len(servings[i].Values))
+		for j := range servings[i].Values {
+			header = append(header, servings[i].ID.String()+"."+servings[i].Name+"."+servings[i].Values[j].Name)
+			cols[j] = QueriesRequestElementColumn{
+				Name: servings[i].Values[j].Name,
+			}
 		}
-		jsonData, _ := json.Marshal(data)
+		e.Columns = cols
+		body[i] = e
+	}
+	influxResponse = append(influxResponse, header)
+	interval := time.Minute * 15
+	start := startInit
+	var end time.Time
+	for start.Before(endInit) {
+		end = start.Add(interval)
+		s := start.Format(time.RFC3339)
+		en := end.Format(time.RFC3339)
+		log.Println("[INFLUX]", "Getting data between", s, "and", en)
+		for i := range body {
+			body[i].Time = &QueriesRequestElementTime{
+				Start: &s,
+				End:   &en,
+			}
+		}
+		jsonData, _ := json.Marshal(body)
 		client := http.Client{}
-		request, err := http.NewRequest("POST", i.url+"/queries", bytes.NewBuffer(jsonData))
+		request, err := http.NewRequest("POST", i.url+"/queries?format=table", bytes.NewBuffer(jsonData))
 		if request != nil {
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Authorization", "Bearer "+accessToken)
 		}
 		resp, err := client.Do(request)
-
-		if _, err := os.Stat(TmpPath); os.IsNotExist(err) {
-			_ = os.MkdirAll(TmpPath, 0755)
-		}
-		if resp != nil {
-			defer resp.Body.Close()
-		}
-		TmpPath += id + ".tmp"
-		out, err := os.Create(TmpPath)
 		if err != nil {
-			fmt.Println(err)
+			return nil, err
 		}
-		if GetEnv("DEBUG", "false") == "true" {
-			counter := &WriteCounter{}
-			if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
-				_ = out.Close()
-				fmt.Println(err)
-			}
-		} else {
-			if _, err = io.Copy(out, resp.Body); err != nil {
-				_ = out.Close()
-				fmt.Println(err)
-			}
-		}
-		_ = out.Close()
-		jsonFile, err := os.Open(TmpPath)
+		var tmp [][]interface{}
+		err = json.NewDecoder(resp.Body).Decode(&tmp)
 		if err != nil {
-			fmt.Println(err)
+			return nil, err
 		}
-		defer jsonFile.Close()
-		err = json.NewDecoder(jsonFile).Decode(&tmpInfluxResponse)
-		if len(influxResponse.Results) < 1 {
-			influxResponse = tmpInfluxResponse
-		} else {
-			if len(tmpInfluxResponse.Results) > 0 && len(tmpInfluxResponse.Results[0].Series) > 0 {
-				influxResponse.Results[0].Series[0].Values = append(influxResponse.Results[0].Series[0].Values, tmpInfluxResponse.Results[0].Series[0].Values...)
-			}
-		}
+		influxResponse = append(influxResponse, tmp...)
+		log.Println("[INFLUX]", "Collected", len(tmp), "rows, total:", len(influxResponse))
+		start = end
 	}
 	return
 }

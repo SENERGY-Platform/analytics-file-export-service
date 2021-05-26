@@ -17,8 +17,6 @@
 package lib
 
 import (
-	"reflect"
-	"strconv"
 	"time"
 
 	uuid "github.com/satori/go.uuid"
@@ -51,53 +49,39 @@ type ServingInstanceValue struct {
 	Path       string    `json:"Path,omitempty"`
 }
 
-type InfluxRequest struct {
-	Time    InfluxTime    `json:"time,omitempty"`
-	Queries []InfluxQuery `json:"queries,omitempty"`
+type QueriesRequestElement struct {
+	Measurement string
+	Time        *QueriesRequestElementTime
+	//Limit            *int `json:"limit,omitempty"`
+	Columns []QueriesRequestElementColumn
+	//Filters          *[]QueriesRequestElementFilter
+	//GroupTime        *string
+	//OrderColumnIndex *int
+	//OrderDirection   *Direction
 }
 
-type InfluxTime struct {
-	Last  string `json:"last,omitempty"`
-	Start string `json:"start,omitempty"`
-	End   string `json:"end,omitempty"`
+type QueriesRequestElementTime struct {
+	//Last  *string
+	Start *string
+	End   *string
 }
 
-type InfluxQuery struct {
-	Id string `json:"id,omitempty"`
+type QueriesRequestElementColumn struct {
+	Name string
+	//GroupType *string
+	//Math      *string
 }
 
-type InfluxResponse struct {
-	Results []InfluxResults `json:"results,omitempty"`
+type QueriesRequestElementFilter struct {
+	Column string
+	Math   *string
+	Type   string
+	Value  interface{}
 }
 
-type InfluxResults struct {
-	Series []InfluxSeries `json:"series,omitempty"`
-}
+type Direction string
 
-type InfluxSeries struct {
-	Columns []string        `json:"columns,omitempty"`
-	Name    string          `json:"name,omitempty"`
-	Values  [][]interface{} `json:"values,omitempty"`
-}
-
-func (i InfluxSeries) GetValuesAsString() (stringValues [][]string) {
-	for _, val := range i.Values {
-		var a []string
-		for _, data := range val {
-			if data != nil {
-				switch reflect.TypeOf(data).Kind() {
-				case reflect.Float64:
-					a = append(a, strconv.FormatFloat(data.(float64), 'f', 20, 64))
-					break
-				case reflect.String:
-					a = append(a, data.(string))
-					break
-				default:
-					break
-				}
-			}
-		}
-		stringValues = append(stringValues, a)
-	}
-	return
-}
+const (
+	Asc  Direction = "asc"
+	Desc Direction = "desc"
+)

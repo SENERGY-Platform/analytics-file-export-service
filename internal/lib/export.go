@@ -19,17 +19,13 @@ package lib
 import (
 	"encoding/csv"
 	"fmt"
+	gocloak "github.com/Nerzal/gocloak/v5"
 	"log"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-
-	gocloak "github.com/Nerzal/gocloak/v5"
-	humanize "github.com/dustin/go-humanize"
 )
 
 type ExportService struct {
@@ -39,6 +35,7 @@ type ExportService struct {
 	cloud     CloudService
 	cloudPath string
 	filePath  string
+	wg        sync.WaitGroup
 }
 
 var NOW = time.Now()
@@ -62,13 +59,16 @@ func (es *ExportService) StartExportService() {
 	if user != nil {
 		es.createCsvFiles(user)
 	}
-	es.uploadFiles()
+	//es.uploadFiles()
+	log.Println("[CORE]", "All files created, waiting for upload to finish...")
+	es.wg.Wait()
 	if len(didNotExport) > 0 {
-		fmt.Println("Did not upload:")
+		log.Println("Did not upload:")
 		for _, export := range didNotExport {
-			fmt.Println(export)
+			log.Println(export)
 		}
 	}
+	log.Println("[CORE]", "All done, bye!")
 }
 
 func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
@@ -76,154 +76,98 @@ func (es *ExportService) createCsvFiles(user *gocloak.UserInfo) {
 	if err != nil {
 		log.Fatal("GetServingServices failed: " + err.Error())
 	} else {
-		var wg sync.WaitGroup
-		if len(GetEnv("SINGLE_MEASUREMENT", "")) > 0 {
-			for _, serving := range servings {
-				if serving.Measurement == GetEnv("SINGLE_MEASUREMENT", "") {
-					servings = []ServingInstance{serving}
-				}
-			}
+		days, err := strconv.Atoi(GetEnv("DAYS_BACK", "1"))
+		if err != nil {
+			log.Println(err)
 		}
-		servingsTotal := strconv.Itoa(len(servings))
-		for no, serving := range servings {
-			wg.Add(1)
-			func() {
-				fmt.Println("Get (" + strconv.Itoa(no+1) + "/" + servingsTotal + "):" + serving.Measurement + " - " + serving.Name)
-				days, err := strconv.Atoi(GetEnv("DAYS_BACK", "1"))
-				if err != nil {
-					fmt.Println(err)
-				}
-				es.getInfluxDataOfExportLastDays(serving, days)
-				defer wg.Done()
-			}()
-		}
-		wg.Wait()
+		es.getInfluxDataOfExportLastDays(servings, days)
 	}
 }
 
-func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, days int) {
+func (es *ExportService) getInfluxDataOfExportLastDays(servings []ServingInstance, days int) {
 	for day := 0; day > -days; day-- {
 		startDate := NOW.AddDate(0, 0, day-1)
-		fmt.Println(startDate.Format("2006-01-02"))
-		start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		path := es.getFilePath(serving)
-		filePath := path + start.Format("2006-01-02") + ".csv"
-		if !fileExists(filePath) {
-			data, _ := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
-			for _, i := range data.Results {
-				es.writeCsv(i, serving, start.Format("2006-01-02"))
-			}
-		}
-		fmt.Println("... done")
-	}
-}
-
-func (es *ExportService) uploadFiles() {
-	files, err := walkMatch(es.filePath, "*.csv")
-	if err != nil {
-		panic(err)
-	}
-	filesTotal := strconv.Itoa(len(files))
-	for no, path := range files {
-		fi, err := os.Stat(path)
-		if err != nil {
-			log.Fatal(err)
-			return
-		}
-		switch mode := fi.Mode(); {
-		case mode.IsDir():
-			// do directory stuff
-		case mode.IsRegular():
-			f, _ := os.Open(path)
-			fmt.Println("Uploading (" + strconv.Itoa(no+1) + "/" + filesTotal + "): " + path)
-			//bytes, _ := ioutil.ReadFile(path)
-			//err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
-			err := es.cloud.UploadFile(strings.Replace(path, es.filePath, es.cloudPath, -1), f, 0755)
+		for hour := 0; hour < 24; hour++ {
+			start := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), hour, 0, 0, 0, time.UTC)
+			end := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), hour+1, 0, 0, 0, time.UTC)
+			data, err := es.influx.GetData(es.keycloak.GetAccessToken(), servings, start, end)
 			if err != nil {
-				fmt.Println("Could not upload " + path + " " + err.Error())
-			} else {
-				_ = os.Remove(path)
-				fmt.Println("... done")
+				log.Println(err.Error())
 			}
-			err = f.Close()
-			if err != nil {
-				fmt.Println(err)
-			}
+			es.writeCsv(data, start)
 		}
+		log.Println("... done")
 	}
 }
 
-func walkMatch(root, pattern string) ([]string, error) {
-	var matches []string
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() {
-			return nil
-		}
-		if matched, err := filepath.Match(pattern, filepath.Base(path)); err != nil {
-			return err
-		} else if matched {
-			matches = append(matches, path)
-		}
-		return nil
-	})
+func (es *ExportService) uploadFile(path string) {
+	es.wg.Add(1)
+	log.Println("[CORE]", "Starting upload:", path)
+	fi, err := os.Stat(path)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
+		return
 	}
-	return matches, nil
+	switch mode := fi.Mode(); {
+	case mode.IsDir():
+		// do directory stuff
+	case mode.IsRegular():
+		f, _ := os.Open(path)
+		//bytes, _ := ioutil.ReadFile(path)
+		//err := es.cloud.UploadFileFromByteArray(strings.Replace(path, LOCAL_PATH, es.cloudPath, -1), bytes, 0755)
+		_ = es.cloud.UploadFile(strings.Replace(path, es.filePath, es.cloudPath, -1), f, 0755)
+		_ = f.Close()
+		err = os.Remove(path)
+		if err != nil {
+			log.Println("[CORE]", "Could not delete", path)
+		}
+	}
+	es.wg.Done()
 }
 
-func (es *ExportService) writeCsv(i InfluxResults, serving ServingInstance, fileName string) {
-	PATH := es.getFilePath(serving)
-	filePath := PATH + fileName + ".csv"
+func (es *ExportService) writeCsv(data [][]interface{}, t time.Time) {
+	folder := es.filePath + "/" + t.Format("2006-01-02")
+	filePath := folder + "/" + t.Format(time.RFC3339) + ".csv"
 	defer func() {
 		if r := recover(); r != nil {
 			didNotExport = append(didNotExport, filePath)
 			_ = os.Remove(filePath)
 		}
 	}()
-	if _, err := os.Stat(PATH); os.IsNotExist(err) {
-		_ = os.MkdirAll(PATH, 0755)
+	if _, err := os.Stat(es.filePath); os.IsNotExist(err) {
+		_ = os.MkdirAll(es.filePath, 0755)
+	}
+	if _, err := os.Stat(folder); os.IsNotExist(err) {
+		_ = os.MkdirAll(folder, 0755)
 	}
 
-	// Create csv file
 	f, err := os.Create(filePath)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Write Unmarshaled json data to CSV file
 	w := csv.NewWriter(f)
-	//Columns
-	_ = w.Write(i.Series[0].Columns[:])
-	//Data
-	for _, d := range i.Series[0].GetValuesAsString() {
-		_ = w.Write(d)
+	dataS := getValuesAsString(data)
+	_ = w.WriteAll(dataS)
+
+	log.Println("[CORE]", "Writing file", filePath)
+	// w.Flush() already called by WriteAll()
+	_ = f.Close()
+	log.Println("[CORE]", "Launching upload in background...")
+	go es.uploadFile(filePath)
+}
+
+func getValuesAsString(data [][]interface{}) (stringValues [][]string) {
+	stringValues = make([][]string, len(data))
+	for i := range data {
+		row := make([]string, len(data[i]))
+		for j := range data[i] {
+			if data[i][j] == nil {
+				row[j] = ""
+			} else {
+				row[j] = fmt.Sprintf("%v", data[i][j])
+			}
+		}
+		stringValues[i] = row
 	}
-	w.Flush()
-	f.Close()
-}
-
-func PrintMemUsage() {
-	var m runtime.MemStats
-	runtime.ReadMemStats(&m)
-	// For info on each, see: https://golang.org/pkg/runtime/#MemStats
-	fmt.Printf("Alloc = %v MiB", humanize.Bytes(m.Alloc))
-	fmt.Printf("\tTotalAlloc = %v MiB", humanize.Bytes(m.TotalAlloc))
-	fmt.Printf("\tSys = %v MiB", humanize.Bytes(m.Sys))
-	fmt.Printf("\tNumGC = %v\n", m.NumGC)
-}
-
-func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
-}
-
-func (es *ExportService) getFilePath(serving ServingInstance) string {
-	path := "./" + es.filePath + "/" + serving.Measurement + "_" + strings.Replace(serving.Name, " ", "_", -1) + "/"
-	return path
+	return
 }

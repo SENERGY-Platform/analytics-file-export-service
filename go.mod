@@ -1,6 +1,6 @@
 module github.com/SENERGY-Platform/analytics-file-export-service/v2
 
-go 1.14
+go 1.16
 
 require (
 	github.com/Nerzal/gocloak/v5 v5.3.0

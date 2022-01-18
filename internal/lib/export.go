@@ -62,7 +62,10 @@ func (es *ExportService) StartExportService() {
 	if user != nil {
 		es.createCsvFiles(user)
 	}
-	es.uploadFiles()
+	uploadFiles, _ := strconv.ParseBool(GetEnv("UPLOAD_FILES", "true"))
+	if uploadFiles {
+		es.uploadFiles()
+	}
 	if len(didNotExport) > 0 {
 		fmt.Println("Did not upload:")
 		for _, export := range didNotExport {

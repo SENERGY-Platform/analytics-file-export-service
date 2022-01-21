@@ -1,0 +1,8 @@
+version: '3.8'
+services:
+  files:
+    image: ghcr.io/senergy-platform/analytics-file-backup:latest
+    env_file:
+      - ./.env
+    volumes:
+      - ./files:/go/src/analytics-file-export-service/files

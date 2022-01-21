@@ -87,7 +87,9 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 			influxResponse = tmpInfluxResponse
 		} else {
 			if len(tmpInfluxResponse.Results) > 0 && len(tmpInfluxResponse.Results[0].Series) > 0 {
-				influxResponse.Results[0].Series[0].Columns = tmpInfluxResponse.Results[0].Series[0].Columns
+				if len(influxResponse.Results[0].Series[0].Columns) < 1 {
+					influxResponse.Results[0].Series[0].Columns = tmpInfluxResponse.Results[0].Series[0].Columns
+				}
 				influxResponse.Results[0].Series[0].Values = append(influxResponse.Results[0].Series[0].Values, tmpInfluxResponse.Results[0].Series[0].Values...)
 			}
 		}

@@ -37,7 +37,7 @@ func NewInfluxService(url string) *InfluxService {
 func (i *InfluxService) GetData(accessToken string, id string, start time.Time) (influxResponse InfluxResponse, err error) {
 	for step := 23; step >= 0; step-- {
 		var tmpInfluxResponse InfluxResponse
-		TmpPath := GetEnv("FILES_PATH", "files") + "/tmp/"
+		TmpPath := GetEnv("TMP_PATH", "/tmp/")
 		start = time.Date(start.Year(), start.Month(), start.Day(), step, 0, 0, 0, time.UTC)
 		end := start.Add(time.Hour * time.Duration(1))
 		data := InfluxRequest{

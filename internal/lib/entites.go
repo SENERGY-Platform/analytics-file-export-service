@@ -87,10 +87,13 @@ func (i InfluxSeries) GetValuesAsString() (stringValues [][]string) {
 			if data != nil {
 				switch reflect.TypeOf(data).Kind() {
 				case reflect.Float64:
-					a = append(a, strconv.FormatFloat(data.(float64), 'f', 20, 64))
+					a = append(a, strconv.FormatFloat(data.(float64), 'f', -1, 64))
 					break
 				case reflect.String:
 					a = append(a, data.(string))
+					break
+				case reflect.Bool:
+					a = append(a, strconv.FormatBool(data.(bool)))
 					break
 				default:
 					break

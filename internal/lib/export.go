@@ -114,7 +114,15 @@ func (es *ExportService) getInfluxDataOfExportLastDays(serving ServingInstance, 
 		if !fileExists(filePath) {
 			data, err := es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
 			if err != nil {
-				fmt.Println(err)
+				if err.Error() == "access error" {
+					es.keycloak.refreshAccessToken()
+					data, err = es.influx.GetData(es.keycloak.GetAccessToken(), serving.Measurement, start)
+				} else {
+					fmt.Println(err)
+				}
+				if err != nil {
+					fmt.Println(err)
+				}
 			}
 			for _, i := range data.Results {
 				es.writeCsv(i, serving, start.Format("2006-01-02"))

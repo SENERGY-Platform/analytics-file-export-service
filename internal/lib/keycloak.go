@@ -59,6 +59,12 @@ func (k *KeycloakService) GetAccessToken() string {
 	return k.token.AccessToken
 }
 
+func (k *KeycloakService) refreshAccessToken() {
+	fmt.Println("refresh token")
+	k.token, _ = k.client.RefreshToken(k.token.RefreshToken, k.clientId, k.clientSecret, k.realm)
+
+}
+
 func (k *KeycloakService) GetUserInfo() (*gocloak.UserInfo, error) {
 	user, err := k.client.GetUserInfo(k.token.AccessToken, k.realm)
 	return user, err

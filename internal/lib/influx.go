@@ -19,9 +19,9 @@ package lib
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -70,7 +70,8 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 			defer resp.Body.Close()
 		}
 		if resp.StatusCode != http.StatusOK {
-			log.Fatalf("could not fetch influx data: %s - %s", resp.StatusCode, resp.Body)
+			e := errors.New("access error")
+			return influxResponse, e
 		}
 		TmpPath += id + ".tmp"
 		out, err := os.Create(TmpPath)

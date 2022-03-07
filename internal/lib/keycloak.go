@@ -51,6 +51,10 @@ func (k *KeycloakService) Logout() {
 	}
 }
 
+func (k *KeycloakService) GetRefreshToken() string {
+	return k.token.RefreshToken
+}
+
 func (k *KeycloakService) GetAccessToken() string {
 	return k.token.AccessToken
 }

@@ -47,14 +47,23 @@ func (i *InfluxService) GetData(accessToken string, id string, start time.Time) 
 		jsonData, _ := json.Marshal(data)
 		client := http.Client{}
 		request, err := http.NewRequest("POST", i.url+"/queries", bytes.NewBuffer(jsonData))
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 		if request != nil {
 			request.Header.Set("Content-Type", "application/json")
 			request.Header.Set("Authorization", "Bearer "+accessToken)
 		}
 		resp, err := client.Do(request)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
 
 		if _, err := os.Stat(TmpPath); os.IsNotExist(err) {
 			_ = os.MkdirAll(TmpPath, 0755)
+		}
+		if err != nil {
+			fmt.Println(err.Error())
 		}
 		if resp != nil {
 			defer resp.Body.Close()
